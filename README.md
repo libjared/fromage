@@ -1,104 +1,81 @@
-# homeage - runtime decrypted [age](https://github.com/str4d/rage) secrets for nix home manager
+# fromage - [age](https://github.com/str4d/rage) secrets for nix home manager, decrypted upon profile activation
 
-`homeage` is a module for [home-manager](https://github.com/nix-community/home-manager) that enables runtime decryption of declarative age files.
+`fromage` is a module for [home-manager](https://github.com/nix-community/home-manager) that enables decryption of secrets when a home-manager profile is activated.
+
+It is based on the [homeage](https://github.com/jordanisaacs/homeage) project.
 
 ## Features
 
-- [x] File agnostic declarative secrets that can be used inside your home-manager flakes
-- [x] Each secret gets decrypted with its own systemd service integrating seamlessly with home-manager reload and update
-- [x] Just normal age encryption, use ssh or age keys
-- [X] Add symbolic links to decrypted files
-- [x] Extremely little bash script so inspect the source yourself!
+- Filetype-agnostic declarative secrets can be used inside your home-manager flakes.
+- Secrets are decrypted with an activation action, integrating seamlessly with home-manager.
+- Encryption/decryption use the typical age workflow, with ssh or age keys.
+- Extremely small, so inspect the source yourself!
 
-## Management Scheme
+## Overview
 
-Pre-Build: Files are encrypted by external age key in repository (unencrypted with associated public key on roadmap)
+Secrets are encrypted by some external identity, and stored as an .age file in your home-manager flake.
 
-Post-Build: Files are encrypted by external age key while in nix store
+**Build**: Encrypted secrets are copied to the Nix store.
 
-Runtime: Files are stored unencrypted in `/run/user/$UID/secrets` and can be symlinked to other locations
+**Pre-activation**: Before activating the profile, Home-manager verifies the secrets can be decrypted with the provided identity. Additionally, it verifies that no secret file's destination will conflict with an existing file.
 
-Notes (in progress [fixes](https://github.com/jordanisaacs/homeage/issues/8#issue-1047731755)):
+**Post-activation**: After home-manager activates the rest of the profile, it decrypts all secrets and writes them to the detination in your home directory. If a file is decrypted and the destination already exists, it will loudly rename the original to a backup, unless the decrypted contents match the existing contents exactly.
 
-1. All `home.file.<name>.symlinks` are not cleaned up on new home-manager generation. Therefore a symlink that points to a decrypted yaml file named `hello` in one generation, instead of being deleted will point to a png file named `hello` in the next.
-
-2. The `/run` secrets folder is not cleaned on home-manager activation. Therefore old secrets will exist decrypted until reboot.
-
-3. Use the `cpOnService` at your own risk, as cleanup is not implemented the decrypted file will exist until manually deleted
+**Runtime**: Secrets remain unencrypted in your home directory.
 
 ## Roadmap
 
-- [ ] Implement cleanup
+- [ ] Implement pre-activation script
+- [ ] Implement post-activation script
 - [ ] Support passphrases
-- [ ] Support unencrypted with public key files
-- [ ] Add activation checks
 - [ ] Add tests
 
 ## Getting started
 
 ### Nix Flakes
 
-While the following below is immense, its mostly just home manager flake boilerplate. All you need to do is import `homeage.homeManagerModules.homeage` into the configuration and set a valid `homeage.identityPaths` and your all set.
+The below example is mostly home-manager boilerplate. In a nutshell, add `fromage.homeManagerModules.fromage` to the list of modules and set a the proper options.
 
 ```nix
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
-    home-manager = {
-      url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    homeage = {
-      url = "github:jordanisaacs/homeage";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    fromage = {
+      url = "github:libjared/fromage";
       # Optional
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { nixpkgs, homeage, ... }@inputs:
+  outputs = { nixpkgs, fromage, ... }:
     let
       pkgs = import nixpkgs {
-        inherit system;
+        system = "x86-64_linux";
       };
-      
-      system = "x86-64_linux";
-      username = "jd";
-      stateVersion = "21.05";
     in {
       homeManagerConfigurations = {
-        jd = home-manager.lib.homeManagerConfiguration {
-          inherit system stateVersion username pkgs;
-          home.homeDirectory = "/home/${username}";
+        "me@machine" = home-manager.lib.homeManagerConfiguration {
+          inherit pkgs;
+          modules = [
+            fromage.homeManagerModules.fromage
+            {
+              home = {
+                username = "me";
+                homeDirectory = "/home/me";
+                stateVersion = "22.11";
+              };
 
-          configuration = {
-            home.stateVersion = stateVersion;
-            home.username = username;
-            home.homeDirectory = "/home/${username}";
+              # CHECK HERE for fromage configuration
+              fromage.identityPaths = [ "~/.ssh/id_ed25519" ];
+              fromage.file."vpn-password" = {
+                src = ./secrets/ta.key.age;
+                dest = ".config/vpn/ta.key";
+              };
+            }
+          ];
 
-            # CHECK HERE for homeage configuration
-            homeage.identityPaths = [ "~/.ssh/id_ed25519" ];
-            homeage.file."pijulsecretkey" = {
-              source = ./secretkey.json.age;
-              path = "pijul/secretkey.json";
-              symlinks = [ "${config.xdg.configHome}/pijul/secretkey.json" ];
-            };
-
-            imports = [ homeage.homeManagerModules.homeage ];
-          };
         };
       };
     };
 }
 ```
-
-## Options
-
-Check out all the [options](./options.md)
-
-## How it works
-
-On home manager build, the age-encrypted files are built into the nix store and symlinked to the provided `homeage.folder` path. This is achieved through the home-manager `home.file` option. Notice that all secret files are encrypted while in the nix store. After the symlinks are finished by home-manager, the systemd units are run. Each secret has its own `oneshot` service that runs a decryption script. This works seamlessly with home-managers updating/reloading of systemd units. The script decrypts the secrets to `/run/user/$UID/secrets/` using the identities provided by `homeage.identityPaths`. It then acts on the decrypted file (changing ownership, linking, etc.). When rebooting, the decrypted files are lost as they are in the `/run` folder. Therefore, the systemd unit is wanted by `default.target` so it will run on startup.
-
-## Acknowledgments
-
-The inspiration for this came from RaitoBezarius' [pull request](https://github.com/ryantm/agenix/pull/58/files) to agenix. I have been trying to figure out how to do secrets with home manager for a while and that PR laid out the foundational ideas for how to do it!
