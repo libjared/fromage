@@ -1,0 +1,20 @@
+<refentry xmlns="http://docbook.org/ns/docbook"
+          xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:xi="http://www.w3.org/2001/XInclude">
+  <refmeta>
+    <refentrytitle>fromage configuration</refentrytitle>
+    <manvolnum>5</manvolnum>
+    <refmiscinfo class="source">fromage</refmiscinfo>
+  </refmeta>
+  <refnamediv>
+    <refname>fromage configuration</refname>
+    <refpurpose>fromage configuration specification</refpurpose>
+  </refnamediv>
+  <refsection>
+    <title>Options</title>
+    <para>
+      You can use the following options in your home configuration:
+    </para>
+    <xi:include href="./nmd-result/fromage-options.xml" />
+  </refsection>
+</refentry>
