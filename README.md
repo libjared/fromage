@@ -19,7 +19,7 @@ Secrets are encrypted by some external identity, and stored as an .age file in y
 
 **Pre-activation**: Before activating the profile, Home-manager verifies the secrets can be decrypted with the provided identity. Additionally, it verifies that no secret file will conflict with an existing file.
 
-**Post-activation**: After home-manager activates the rest of the profile, it decrypts all secrets and writes them to `~/.local/share/fromage/`. If a file is decrypted and the destination already exists, it will loudly rename the original to a backup, unless the decrypted contents match the existing contents exactly.
+**Post-activation**: After home-manager activates the rest of the profile, it decrypts all secrets and writes them to `~/.local/share/fromage/`. Secret files are removed and decrypted each time a generation with them is activated.
 
 **Runtime**: Secrets remain unencrypted in your home directory.
 

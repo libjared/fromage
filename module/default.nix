@@ -6,7 +6,6 @@ let
 
   ageBin = if cfg.isRage then "${cfg.pkg}/bin/rage" else "${cfg.pkg}/bin/age";
 
-  # TODO: sort? or do attrSets have stable order?
   fileList = attrValues (mapAttrs (k: v: { name = k; } // v) cfg.file);
   identityArgs = concatStringsSep " " (map (p: ''-i "${p}"'') cfg.identityPaths);
 
@@ -16,11 +15,11 @@ let
     data = config.xdg.dataHome;
     # absolute path, /home/me
     home = config.home.homeDirectory;
-    valid = hasPrefix home data;
     rel = removePrefix home data;
     result = "./${rel}/fromage";
   in (
-    assert assertMsg valid "fromage requires 'config.xdg.dataHome' to be within 'config.home.homeDirectory'.";
+    assert assertMsg (hasPrefix home data) "fromage requires 'config.xdg.dataHome' to be within 'config.home.homeDirectory'.";
+    assert assertMsg (hasSuffix "/fromage" result) "fromage data directory is in an unexpected location.";
     result
   );
 
@@ -81,91 +80,97 @@ in
     };
   };
 
-  config = mkIf (cfg.file != { }) (mkMerge [
+  config = mkIf (fileList != [ ]) (
     {
       assertions = [{
         assertion = cfg.identityPaths != [ ];
         message = "fromage.identityPaths must be set.";
+      } {
+        assertion = all (file: file.name != "") fileList;
+        message = "fromage.file.<name> cannot be empty string.";
+      } {
+        assertion = all (file: !(hasPrefix "-" file.name)) fileList;
+        message = "fromage.file.<name> cannot start with a HYPHEN-MINUS character.";
+      } {
+        assertion = all (file: !(hasInfix "/" file.name)) fileList;
+        message = "fromage.file.<name> cannot contain forward-slash characters.";
+      } {
+        assertion = all (file: !(hasInfix "\n" file.name)) fileList;
+        message = "fromage.file.<name> cannot contain newline characters.";
       }];
 
-      # FIXME: disallow names with newlines, forward-slashes, or empty
-      # TODO: test names with spaces, or start with dashes
-      # FIXME: don't run steps when fileList is empty
-      # FIXME: assert no duplicate names
-      # TODO: when not verbose, make the decryption fail fast
+      # 1. if a file with the secret's name exists in home-files, die.
+      # 2. decrypt all .age files from the nix store, just to verify that the
+      # provided identity will work on all secrets.
+      # TODO: test names with spaces
+      # TODO: fail/pass quickly, without decrypting the whole thing
       home.activation.verifySecrets = lib.hm.dag.entryBefore ["writeBoundary"] (
         let
-          # if a file with the secret's name exists in home-files, die.
-          conflictCommand = { name, ... }: ''
-            if [[ -e "$newGenPath/home-files/${secretOutPath}/${name}" ]]; then
-              errorEcho "Fail: secret ${name} already is already managed by home.files"
-              exit 1
-            fi
-          '';
-          conflictCommands = concatStringsSep "\n" (map conflictCommand fileList);
-
-          # decrypt all .age files from the nix store, just to verify that the
-          # provided identity will work on all secrets.
-          # TODO: if in verbose mode:
-          # for each secret, print if a file with the secret's name exists in $HOME, and if so, whether the contents match
-          decryptCommand = { name, src, ... }: ''
-            $VERBOSE_RUN _i 'Verifying decryption of secret named "${name}"'
-            ${ageBin} --decrypt ${identityArgs} -o /dev/null "${src}"
-          '';
-          decryptCommands = concatStringsSep "\n" (map decryptCommand fileList);
-
           script = ''
-            $VERBOSE_RUN _i "Checking for conflicts with other home-files"
-            ${conflictCommands}
+            function verifyConflict() {
+              local name="$1"
 
+              $VERBOSE_RUN _i 'Verifying no conflicts of secret named "%s"' "$name"
+              if [[ -e "$newGenPath/home-files/$secretOutPath/$name" ]]; then
+                errorEcho 'Fail: secret "%s" already is already managed by home.files' "$name"
+                exit 1
+              fi
+            }
+
+            function verifyDecrypt() {
+              local name="$1"
+              local src="$2"
+
+              $VERBOSE_RUN _i 'Verifying decryption of secret named "%s"' "$name"
+              ${ageBin} --decrypt ${identityArgs} -o /dev/null "$src"
+            }
+
+            $VERBOSE_RUN _i "Checking for conflicts with other home-files"
+            secretOutPath=${escapeShellArg secretOutPath}
+
+            ${conflictCommands}
             ${decryptCommands}
           '';
+          conflictCommands = concatStringsSep "\n" (map conflictCommand fileList);
+          conflictCommand = { name, ... }:
+            ''verifyConflict ${escapeShellArg name}'';
+          decryptCommands = concatStringsSep "\n" (map decryptCommand fileList);
+          decryptCommand = { name, src, ... }:
+            ''verifyDecrypt ${escapeShellArgs [ name src ]}'';
         in script
       );
 
-      # for each secret s:
-      # decrypt s to temp file t.
-      # if dest d exists, compare d with t. if they match, remove d.
-      # mv t to d with the numbered backup.
-      # set owner, group, and perms.
-      # TODO: clean up old secrets and dirs
-      # TODO: clean up tmp
+      # create fromage directory. decrypt each secret directly to fromage
+      # directory, setting owner, group, and perms.
+      # TODO: warn when no secrets are defined and module is still loaded
       # TODO: support dry-run and verbose
       home.activation.decryptSecrets = lib.hm.dag.entryAfter ["writeBoundary" "onFilesChange"] (
         let
-          decryptCommand = { name, src, owner, group, mode, ... }: let
-            setOwner =
-              if owner == "" then ''
-                dOwner="$UID"
-              '' else toShellVar "dOwner" owner;
-            setGroup =
-              if group == "" then ''
-                dGroup="$(id -g)"
-              '' else toShellVar "dGroup" group;
-          in ''
-            $VERBOSE_RUN _i 'Decrypting secret named "${name}"'
-            t="$decryptedStore/${name}"
-            d="${secretOutPath}/${name}"
-            $DRY_RUN_CMD ${ageBin} --decrypt ${identityArgs} -o "$t" "${src}"
-            if [[ -r "$d" ]]; then
-              if cmp -s "$d" "$t"; then
-                $DRY_RUN_CMD echo rm --verbose --interactive=never "$d"
-              fi
-            fi
-            $DRY_RUN_CMD mv --backup=numbered "$t" "$d"
-            ${setOwner}
-            ${setGroup}
-            ${toShellVar "dMode" mode}
-            $DRY_RUN_CMD chown "$dOwner":"$dGroup" "$d"
-            $DRY_RUN_CMD chmod "$dMode" "$d"
+          script = ''
+            function decrypt() {
+              local name="$1"
+              local src="$2"
+              local owner="$${3-$UID}"
+              local group="$${4-$(id -g)}"
+              local mode="$5"
+
+              local dest="$secretOutPath/$name"
+
+              $VERBOSE_RUN _i 'Decrypting secret named "%s"' "$name"
+              $DRY_RUN_CMD ${ageBin} --decrypt ${identityArgs} -o "$dest" "$src"
+              $DRY_RUN_CMD chown "$owner":"$group" "$dest"
+              $DRY_RUN_CMD chmod "$mode" "$dest"
+            }
+
+            secretOutPath=${escapeShellArg secretOutPath}
+            $DRY_RUN_CMD mkdir -p "$secretOutPath"
+            ${decryptCommands}
           '';
           decryptCommands = concatStringsSep "\n" (map decryptCommand fileList);
-        in ''
-          $DRY_RUN_CMD mkdir -p "${secretOutPath}"
-          decryptedStore=$(mktemp -d --suffix "-fromage")
-          ${decryptCommands}
-        ''
+          decryptCommand = { name, src, owner, group, mode, ... }:
+            ''decrypt ${escapeShellArgs [ name src owner group mode ]}'';
+        in script
       );
     }
-  ]);
+  );
 }
