@@ -1,0 +1,17 @@
+name: "nix flake check"
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    # You may pin to the exact commit or the version.
+    # uses: cachix/install-nix-action@d64e0553100205688c0fb2fa16edb0fc8663c590
+    - uses: cachix/install-nix-action@v17
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+    - run: nix flake check
