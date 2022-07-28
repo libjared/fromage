@@ -7,7 +7,7 @@ let
   ageBin = if cfg.isRage then "${cfg.pkg}/bin/rage" else "${cfg.pkg}/bin/age";
 
   fileList = attrValues (mapAttrs (k: v: { name = k; } // v) cfg.file);
-  identityArgs = concatStringsSep " " (map (p: ''-i "${p}"'') cfg.identityPaths);
+  identityArgs = concatStringsSep " " (map (p: ''-i "${escapeShellArg p}"'') cfg.identityPaths);
 
   # relative path, ./.local/share/fromage
   secretOutPath = let
@@ -107,26 +107,11 @@ in
       home.activation.verifySecrets = lib.hm.dag.entryBefore ["writeBoundary"] (
         let
           script = ''
-            function verifyConflict() {
-              local name="$1"
-
-              $VERBOSE_RUN _i 'Verifying no conflicts of secret named "%s"' "$name"
-              if [[ -e "$newGenPath/home-files/$secretOutPath/$name" ]]; then
-                errorEcho 'Fail: secret "%s" already is already managed by home.files' "$name"
-                exit 1
-              fi
-            }
-
-            function verifyDecrypt() {
-              local name="$1"
-              local src="$2"
-
-              $VERBOSE_RUN _i 'Verifying decryption of secret named "%s"' "$name"
-              ${ageBin} --decrypt ${identityArgs} -o /dev/null "$src"
-            }
+            ${functions}
 
             $VERBOSE_RUN _i "Checking for conflicts with other home-files"
             secretOutPath=${escapeShellArg secretOutPath}
+            $VERBOSE_RUN _i "Will output secrets to $secretOutPath"
 
             ${conflictCommands}
             ${decryptCommands}
@@ -137,30 +122,35 @@ in
           decryptCommands = concatStringsSep "\n" (map decryptCommand fileList);
           decryptCommand = { name, src, ... }:
             ''verifyDecrypt ${escapeShellArgs [ name src ]}'';
+          functions = ''
+            function verifyConflict() {
+              local name="$1"
+
+              $VERBOSE_RUN _i "Verifying no conflicts of secret named \"$name\""
+              if [[ -e "$newGenPath/home-files/$secretOutPath/$name" ]]; then
+                errorEcho "Fail: secret \"$name\" already is already managed by home.files"
+                exit 1
+              fi
+            }
+
+            function verifyDecrypt() {
+              local name="$1"
+              local src="$2"
+
+              $VERBOSE_RUN _i "Verifying decryption of secret named \"$name\""
+              ${ageBin} --decrypt ${identityArgs} -o /dev/null "$src"
+            }
+          '';
         in script
       );
 
       # create fromage directory. decrypt each secret directly to fromage
       # directory, setting owner, group, and perms.
-      # TODO: warn when no secrets are defined and module is still loaded
       # TODO: support dry-run and verbose
       home.activation.decryptSecrets = lib.hm.dag.entryAfter ["writeBoundary" "onFilesChange"] (
         let
           script = ''
-            function decrypt() {
-              local name="$1"
-              local src="$2"
-              local owner="$${3-$UID}"
-              local group="$${4-$(id -g)}"
-              local mode="$5"
-
-              local dest="$secretOutPath/$name"
-
-              $VERBOSE_RUN _i 'Decrypting secret named "%s"' "$name"
-              $DRY_RUN_CMD ${ageBin} --decrypt ${identityArgs} -o "$dest" "$src"
-              $DRY_RUN_CMD chown "$owner":"$group" "$dest"
-              $DRY_RUN_CMD chmod "$mode" "$dest"
-            }
+            ${functions}
 
             secretOutPath=${escapeShellArg secretOutPath}
             $DRY_RUN_CMD mkdir -p "$secretOutPath"
@@ -169,6 +159,23 @@ in
           decryptCommands = concatStringsSep "\n" (map decryptCommand fileList);
           decryptCommand = { name, src, owner, group, mode, ... }:
             ''decrypt ${escapeShellArgs [ name src owner group mode ]}'';
+          functions = ''
+            function decrypt() {
+              local name="$1"
+              local src="$2"
+              local owner="$${3-$UID}"
+              local group="$${4-$(id -g)}"
+              local mode="$5"
+
+              $VERBOSE_RUN _i "Decrypting secret named \"$name\""
+
+              local dest="$secretOutPath/$name"
+
+              $DRY_RUN_CMD ${ageBin} --decrypt ${identityArgs} -o "$dest" "$src"
+              $DRY_RUN_CMD chown "$owner":"$group" "$dest"
+              $DRY_RUN_CMD chmod "$mode" "$dest"
+            }
+          '';
         in script
       );
     }
