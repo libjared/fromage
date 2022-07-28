@@ -17,18 +17,16 @@ Secrets are encrypted by some external identity, and stored as an .age file in y
 
 **Build**: Encrypted secrets are copied to the Nix store.
 
-**Pre-activation**: Before activating the profile, Home-manager verifies the secrets can be decrypted with the provided identity. Additionally, it verifies that no secret file's destination will conflict with an existing file.
+**Pre-activation**: Before activating the profile, Home-manager verifies the secrets can be decrypted with the provided identity. Additionally, it verifies that no secret file will conflict with an existing file.
 
-**Post-activation**: After home-manager activates the rest of the profile, it decrypts all secrets and writes them to the detination in your home directory. If a file is decrypted and the destination already exists, it will loudly rename the original to a backup, unless the decrypted contents match the existing contents exactly.
+**Post-activation**: After home-manager activates the rest of the profile, it decrypts all secrets and writes them to `~/.local/share/fromage/`. Secret files are removed and decrypted each time a generation with them is activated.
 
 **Runtime**: Secrets remain unencrypted in your home directory.
 
 ## Roadmap
 
-- [ ] Implement pre-activation script
-- [ ] Implement post-activation script
 - [ ] Support passphrases
-- [ ] Add tests
+- [ ] Add more tests
 
 ## Getting started
 
@@ -42,18 +40,17 @@ The below example is mostly home-manager boilerplate. In a nutshell, add `fromag
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     fromage = {
       url = "github:libjared/fromage";
-      # Optional
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { nixpkgs, fromage, ... }:
+  outputs = { nixpkgs, home-manager, fromage, ... }:
     let
       pkgs = import nixpkgs {
-        system = "x86-64_linux";
+        system = "x86_64-linux";
       };
     in {
-      homeManagerConfigurations = {
+      homeConfigurations = {
         "me@machine" = home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
           modules = [
@@ -67,13 +64,12 @@ The below example is mostly home-manager boilerplate. In a nutshell, add `fromag
 
               # CHECK HERE for fromage configuration
               fromage.identityPaths = [ "~/.ssh/id_ed25519" ];
-              fromage.file."vpn-password" = {
-                src = ./secrets/ta.key.age;
-                dest = ".config/vpn/ta.key";
+              fromage.file."ta.key" = {
+                src = ./secrets/mytakey.age;
               };
+              # this will create ~/.local/share/fromage/ta.key
             }
           ];
-
         };
       };
     };
