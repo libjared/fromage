@@ -25,10 +25,8 @@ Secrets are encrypted by some external identity, and stored as an .age file in y
 
 ## Roadmap
 
-- [ ] Implement pre-activation script
-- [ ] Implement post-activation script
 - [ ] Support passphrases
-- [ ] Add tests
+- [ ] Add more tests
 
 ## Getting started
 
