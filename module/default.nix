@@ -109,9 +109,9 @@ in
           script = ''
             ${functions}
 
-            $VERBOSE_RUN _i "Checking for conflicts with other home-files"
+            $VERBOSE_ECHO "Checking for conflicts with other home-files"
             secretOutPath=${escapeShellArg secretOutPath}
-            $VERBOSE_RUN _i "Will output secrets to $secretOutPath"
+            $VERBOSE_ECHO "Will output secrets to $secretOutPath"
 
             ${conflictCommands}
             ${decryptCommands}
@@ -126,7 +126,7 @@ in
             function verifyConflict() {
               local name="$1"
 
-              $VERBOSE_RUN _i "Verifying no conflicts of secret named \"$name\""
+              $VERBOSE_ECHO "Verifying no conflicts of secret named \"$name\""
               if [[ -e "$newGenPath/home-files/$secretOutPath/$name" ]]; then
                 errorEcho "Fail: secret \"$name\" already is already managed by home.files"
                 exit 1
@@ -137,7 +137,7 @@ in
               local name="$1"
               local src="$2"
 
-              $VERBOSE_RUN _i "Verifying decryption of secret named \"$name\""
+              $VERBOSE_ECHO "Verifying decryption of secret named \"$name\""
               ${ageBin} --decrypt ${identityArgs} -o /dev/null "$src"
             }
           '';
@@ -146,14 +146,13 @@ in
 
       # create fromage directory. decrypt each secret directly to fromage
       # directory, setting owner, group, and perms.
-      # TODO: support dry-run and verbose
       home.activation.decryptSecrets = lib.hm.dag.entryAfter ["writeBoundary" "onFilesChange"] (
         let
           script = ''
             ${functions}
 
             secretOutPath=${escapeShellArg secretOutPath}
-            $DRY_RUN_CMD mkdir -p "$secretOutPath"
+            $DRY_RUN_CMD mkdir $VERBOSE_ARG -p "$secretOutPath"
             ${decryptCommands}
           '';
           decryptCommands = concatStringsSep "\n" (map decryptCommand fileList);
@@ -167,13 +166,13 @@ in
               local group="$${4-$(id -g)}"
               local mode="$5"
 
-              $VERBOSE_RUN _i "Decrypting secret named \"$name\""
+              $VERBOSE_ECHO "Decrypting secret named \"$name\""
 
               local dest="$secretOutPath/$name"
 
               $DRY_RUN_CMD ${ageBin} --decrypt ${identityArgs} -o "$dest" "$src"
-              $DRY_RUN_CMD chown "$owner":"$group" "$dest"
-              $DRY_RUN_CMD chmod "$mode" "$dest"
+              $DRY_RUN_CMD chown $VERBOSE_ARG "$owner":"$group" "$dest"
+              $DRY_RUN_CMD chmod $VERBOSE_ARG "$mode" "$dest"
             }
           '';
         in script
