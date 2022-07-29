@@ -7,7 +7,7 @@ let
   ageBin = if cfg.isRage then "${cfg.pkg}/bin/rage" else "${cfg.pkg}/bin/age";
 
   fileList = attrValues (mapAttrs (k: v: { name = k; } // v) cfg.file);
-  identityArgs = concatStringsSep " " (map (p: ''-i "${escapeShellArg p}"'') cfg.identityPaths);
+  identityArgs = concatStringsSep " " (map (p: ''-i ${escapeShellArg p}'') cfg.identityPaths);
 
   # relative path, ./.local/share/fromage
   secretOutPath =
