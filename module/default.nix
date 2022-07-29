@@ -10,18 +10,20 @@ let
   identityArgs = concatStringsSep " " (map (p: ''-i "${escapeShellArg p}"'') cfg.identityPaths);
 
   # relative path, ./.local/share/fromage
-  secretOutPath = let
-    # absolute path, /home/me/.local/share
-    data = config.xdg.dataHome;
-    # absolute path, /home/me
-    home = config.home.homeDirectory;
-    rel = removePrefix home data;
-    result = "./${rel}/fromage";
-  in (
-    assert assertMsg (hasPrefix home data) "fromage requires 'config.xdg.dataHome' to be within 'config.home.homeDirectory'.";
-    assert assertMsg (hasSuffix "/fromage" result) "fromage data directory is in an unexpected location.";
-    result
-  );
+  secretOutPath =
+    let
+      # absolute path, /home/me/.local/share
+      data = config.xdg.dataHome;
+      # absolute path, /home/me
+      home = config.home.homeDirectory;
+      rel = removePrefix home data;
+      result = "./${rel}/fromage";
+    in
+    (
+      assert assertMsg (hasPrefix home data) "fromage requires 'config.xdg.dataHome' to be within 'config.home.homeDirectory'.";
+      assert assertMsg (hasSuffix "/fromage" result) "fromage data directory is in an unexpected location.";
+      result
+    );
 
   # Options for a secret file
   secretFile = types.submodule ({ name, ... }: {
@@ -50,7 +52,7 @@ let
       };
     };
 
-    config = {};
+    config = { };
   });
 in
 {
@@ -82,29 +84,35 @@ in
 
   config = mkIf (fileList != [ ]) (
     {
-      assertions = [{
-        assertion = cfg.identityPaths != [ ];
-        message = "fromage.identityPaths must be set.";
-      } {
-        assertion = all (file: file.name != "") fileList;
-        message = "fromage.file.<name> cannot be empty string.";
-      } {
-        assertion = all (file: !(hasPrefix "-" file.name)) fileList;
-        message = "fromage.file.<name> cannot start with a HYPHEN-MINUS character.";
-      } {
-        assertion = all (file: !(hasInfix "/" file.name)) fileList;
-        message = "fromage.file.<name> cannot contain forward-slash characters.";
-      } {
-        assertion = all (file: !(hasInfix "\n" file.name)) fileList;
-        message = "fromage.file.<name> cannot contain newline characters.";
-      }];
+      assertions = [
+        {
+          assertion = cfg.identityPaths != [ ];
+          message = "fromage.identityPaths must be set.";
+        }
+        {
+          assertion = all (file: file.name != "") fileList;
+          message = "fromage.file.<name> cannot be empty string.";
+        }
+        {
+          assertion = all (file: !(hasPrefix "-" file.name)) fileList;
+          message = "fromage.file.<name> cannot start with a HYPHEN-MINUS character.";
+        }
+        {
+          assertion = all (file: !(hasInfix "/" file.name)) fileList;
+          message = "fromage.file.<name> cannot contain forward-slash characters.";
+        }
+        {
+          assertion = all (file: !(hasInfix "\n" file.name)) fileList;
+          message = "fromage.file.<name> cannot contain newline characters.";
+        }
+      ];
 
       # 1. if a file with the secret's name exists in home-files, die.
       # 2. decrypt all .age files from the nix store, just to verify that the
       # provided identity will work on all secrets.
       # TODO: test names with spaces
       # TODO: fail/pass quickly, without decrypting the whole thing
-      home.activation.verifySecrets = lib.hm.dag.entryBefore ["writeBoundary"] (
+      home.activation.verifySecrets = lib.hm.dag.entryBefore [ "writeBoundary" ] (
         let
           script = ''
             ${functions}
@@ -141,12 +149,13 @@ in
               ${ageBin} --decrypt ${identityArgs} -o /dev/null "$src"
             }
           '';
-        in script
+        in
+        script
       );
 
       # create fromage directory. decrypt each secret directly to fromage
       # directory, setting owner, group, and perms.
-      home.activation.decryptSecrets = lib.hm.dag.entryAfter ["writeBoundary" "onFilesChange"] (
+      home.activation.decryptSecrets = lib.hm.dag.entryAfter [ "writeBoundary" "onFilesChange" ] (
         let
           script = ''
             ${functions}
@@ -175,7 +184,8 @@ in
               $DRY_RUN_CMD chmod $VERBOSE_ARG "$mode" "$dest"
             }
           '';
-        in script
+        in
+        script
       );
     }
   );
