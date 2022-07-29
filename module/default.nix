@@ -7,7 +7,7 @@ let
   ageBin = if cfg.isRage then "${cfg.pkg}/bin/rage" else "${cfg.pkg}/bin/age";
 
   fileList = attrValues (mapAttrs (k: v: { name = k; } // v) cfg.file);
-  identityArgs = concatStringsSep " " (map (p: ''-i "${escapeShellArg p}"'') cfg.identityPaths);
+  identityArgs = concatStringsSep " " (map (p: ''-i ${escapeShellArg p}'') cfg.identityPaths);
 
   # relative path, ./.local/share/fromage
   secretOutPath =
@@ -171,8 +171,8 @@ in
             function decrypt() {
               local name="$1"
               local src="$2"
-              local owner="$${3-$UID}"
-              local group="$${4-$(id -g)}"
+              local owner="''${3-$UID}"
+              local group="''${4-$(id -g)}"
               local mode="$5"
 
               $VERBOSE_ECHO "Decrypting secret named \"$name\""
