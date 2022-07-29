@@ -171,8 +171,8 @@ in
             function decrypt() {
               local name="$1"
               local src="$2"
-              local owner="$${3-$UID}"
-              local group="$${4-$(id -g)}"
+              local owner="''${3-$UID}"
+              local group="''${4-$(id -g)}"
               local mode="$5"
 
               $VERBOSE_ECHO "Decrypting secret named \"$name\""
