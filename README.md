@@ -1,4 +1,4 @@
-# fromage - [age](https://github.com/str4d/rage) secrets for nix home manager, decrypted upon profile activation
+# fromage - [age](https://github.com/FiloSottile/age) secrets for Nix home-manager, decrypted upon profile activation
 
 `fromage` is a module for [home-manager](https://github.com/nix-community/home-manager) that enables decryption of secrets when a home-manager profile is activated.
 
@@ -7,8 +7,8 @@ It is based on the [homeage](https://github.com/jordanisaacs/homeage) project.
 ## Features
 
 - Filetype-agnostic declarative secrets can be used inside your home-manager flakes.
-- Secrets are decrypted with an activation action, integrating seamlessly with home-manager.
-- Encryption/decryption use the typical age workflow, with ssh or age keys.
+- Secrets are decrypted with an activation step, integrating seamlessly with home-manager.
+- Decryption uses the typical age workflow with ssh or age keys.
 - Extremely small, so inspect the source yourself!
 
 ## Overview
@@ -17,11 +17,11 @@ Secrets are encrypted by some external identity, and stored as an .age file in y
 
 **Build**: Encrypted secrets are copied to the Nix store.
 
-**Pre-activation**: Before activating the profile, Home-manager verifies the secrets can be decrypted with the provided identity. Additionally, it verifies that no secret file will conflict with an existing file.
+**Pre-writeBoundary**: Before activating the profile, home-manager verifies the secrets can be decrypted with the provided identity. Additionally, it verifies that no secret file conflicts with a file that home-manager already manages.
 
-**Post-activation**: After home-manager activates the rest of the profile, it decrypts all secrets and writes them to `~/.local/share/fromage/`. Secret files are removed and decrypted each time a generation with them is activated.
+**Post-writeBoundary**: After home-manager activates the rest of the profile, it decrypts all secrets and writes them to `~/.local/share/fromage/`. Secret files are re-decrypted each time a generation with this module is activated.
 
-**Runtime**: Secrets remain unencrypted in your home directory.
+**Runtime**: Secrets remain unencrypted in that directory.
 
 ## Roadmap
 
@@ -32,7 +32,7 @@ Secrets are encrypted by some external identity, and stored as an .age file in y
 
 ### Nix Flakes
 
-The below example is mostly home-manager boilerplate. In a nutshell, add `fromage.homeManagerModules.fromage` to the list of modules and set a the proper options.
+The below example is mostly home-manager boilerplate. In a nutshell, add `fromage.homeManagerModules.fromage` to the list of modules and set the proper options.
 
 ```nix
 {
@@ -49,7 +49,8 @@ The below example is mostly home-manager boilerplate. In a nutshell, add `fromag
       pkgs = import nixpkgs {
         system = "x86_64-linux";
       };
-    in {
+    in
+    {
       homeConfigurations = {
         "me@machine" = home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
@@ -63,7 +64,7 @@ The below example is mostly home-manager boilerplate. In a nutshell, add `fromag
               };
 
               # CHECK HERE for fromage configuration
-              fromage.identityPaths = [ "~/.ssh/id_ed25519" ];
+              fromage.identityPaths = [ "/home/me/.ssh/id_ed25519" ];
               fromage.file."ta.key" = {
                 src = ./secrets/mytakey.age;
               };
