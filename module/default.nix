@@ -84,10 +84,11 @@ in
 
   config = mkIf (fileList != [ ]) (
     {
-      assertions = [{
-        assertion = cfg.identityPaths != [ ];
-        message = "fromage.identityPaths must be set.";
-      }
+      assertions = [
+        {
+          assertion = cfg.identityPaths != [ ];
+          message = "fromage.identityPaths must be set.";
+        }
         {
           assertion = all (file: file.name != "") fileList;
           message = "fromage.file.<name> cannot be empty string.";
@@ -103,7 +104,8 @@ in
         {
           assertion = all (file: !(hasInfix "\n" file.name)) fileList;
           message = "fromage.file.<name> cannot contain newline characters.";
-        }];
+        }
+      ];
 
       # 1. if a file with the secret's name exists in home-files, die.
       # 2. decrypt all .age files from the nix store, just to verify that the
