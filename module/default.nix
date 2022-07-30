@@ -212,7 +212,7 @@ in
 
               local dest="$secretOutPath/$name"
 
-              $DRY_RUN_CMD rm -f --interactive=never -- "$dest"
+              $DRY_RUN_CMD rm $VERBOSE_ARG -f --interactive=never -- "$dest"
               $DRY_RUN_CMD ${ageBin} --decrypt ${identityArgs} -o "$dest" "$src"
               $DRY_RUN_CMD chown $VERBOSE_ARG "$owner":"$group" -- "$dest"
               $DRY_RUN_CMD chmod $VERBOSE_ARG "$mode" -- "$dest"
