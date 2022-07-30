@@ -11,6 +11,10 @@ It is based on the [homeage](https://github.com/jordanisaacs/homeage) project.
 - Decryption uses the typical age workflow with ssh or age keys.
 - Extremely small, so inspect the source yourself!
 
+## Options
+
+Check out the [list of configuration options](https://libjared.github.io/fromage/options.html).
+
 ## Overview
 
 Secrets are encrypted by some external identity, and stored as an .age file in your home-manager flake.
