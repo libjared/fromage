@@ -4,7 +4,7 @@ with lib;
 let
   cfg = config.fromage;
 
-  ageBin = if cfg.isRage then "${cfg.pkg}/bin/rage" else "${cfg.pkg}/bin/age";
+  ageBin = if cfg.isRage then "${cfg.package}/bin/rage" else "${cfg.package}/bin/age";
 
   fileList = attrValues (mapAttrs (k: v: { name = k; } // v) cfg.file);
   identityArgs = concatStringsSep " " (map (p: ''-i ${escapeShellArg p}'') cfg.identityPaths);
@@ -30,25 +30,35 @@ let
     options = {
       src = mkOption {
         type = types.path;
-        description = "Path primitive to the .age encrypted file";
+        description = ''
+          Path primitive to the .age encrypted file.
+        '';
       };
 
       mode = mkOption {
         type = types.str;
         default = "0400";
-        description = "Permissions mode of the decrypted file";
+        description = ''
+          Permissions mode of the decrypted file.
+        '';
       };
 
       owner = mkOption {
         type = types.str;
         default = "";
-        description = "Owner of the decrypted file. If set to an empty string, substitute the value of $UID at activation time.";
+        description = ''
+          Owner of the decrypted file. If set to an empty string, substitute
+          the value of <code>$UID</code> at activation time.
+        '';
       };
 
       group = mkOption {
         type = types.str;
         default = "";
-        description = "Group of the decrypted file. If set to an empty string, substitute the value of $(id -g) at activation time.";
+        description = ''
+          Group of the decrypted file. If set to an empty string, substitute
+          the value of <code>$(id -g)</code> at activation time.
+        '';
       };
     };
 
@@ -60,25 +70,48 @@ in
     file = mkOption {
       type = types.attrsOf secretFile;
       default = { };
-      description = "Attrset of secret files. The <name> is the filename of the decrypted file, which will be saved in ${config.xdg.dataHome}/fromage";
+      example = literalExpression ''
+        {
+          "secret.key" = {
+            src = ./path/to/secret.key.age;
+          };
+        }
+      '';
+      description = ''
+        Attrset of secret files. The <varname>name</varname> is the filename of
+        the decrypted file, which will be saved in
+        <filename>$XDG_CONFIG_HOME/fromage</filename>.
+      '';
     };
 
-    pkg = mkOption {
+    package = mkOption {
       type = types.package;
       default = pkgs.age;
-      description = "(R)age package to use";
+      defaultText = literalExpression "pkgs.age";
+      description = ''
+        (R)age package to use.
+      '';
     };
 
     isRage = mkOption {
       type = types.bool;
       default = false;
-      description = "Whether the binary that `pkg` provides is named \"rage\" instead of \"age\"";
+      description = ''
+        Whether the binary that <varname>package</varname> provides is named
+        <command>rage</command> instead of <command>age</command>.
+      '';
     };
 
     identityPaths = mkOption {
       type = types.listOf types.str;
       default = [ ];
-      description = "Absolute path to identity files used for age decryption. Must provide at least one path.";
+      example = literalExpression ''
+        [ "''${config.home.homeDirectory}/.ssh/id_ed25519" ]
+      '';
+      description = ''
+        Absolute path to identity files used for age decryption. Must provide
+        at least one path. Tilde expansion won't be performed.
+      '';
     };
   };
 
