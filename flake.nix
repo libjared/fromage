@@ -25,6 +25,7 @@
     {
       homeManagerModules.fromage = import ./module;
       checks.x86_64-linux.example = example;
+      checks.x86_64-linux.docs = self.packages.x86_64-linux.docs-html;
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixpkgs-fmt;
       packages.x86_64-linux.docs-html = docs.manual.html;
     };
