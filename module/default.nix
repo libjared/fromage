@@ -80,7 +80,7 @@ in
       description = ''
         Attrset of secret files. The <varname>name</varname> is the filename of
         the decrypted file, which will be saved in
-        <filename>$XDG_CONFIG_HOME/fromage</filename>.
+        <filename>$XDG_DATA_HOME/fromage</filename>.
       '';
     };
 
